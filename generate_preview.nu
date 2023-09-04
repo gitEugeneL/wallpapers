@@ -1,5 +1,6 @@
 #!/usr/bin/env nu
 
+const README = "README.org"
 const README_HEADER = "* wallpapers
 
 A gallery of wallpapers for goats.
@@ -27,19 +28,40 @@ If you stumble upon art or photos that you own or that you know and show that sp
 
 ** Gallery"
 
+def preview [filename: path, name: string, --level: int = 4]: nothing -> string {
+    [
+        $"('*' * $level) ($name)"
+        $"#+CAPTION: ($name)"
+        $"#+NAME: ($filename)"
+        $"[[./($filename)]]\n\n"
+    ]
+    | str join "\n"
+}
+
 def main [] {
-    $README_HEADER | save --force README.org
-    "\n" | save --force --append README.org
+    $README_HEADER ++ "\n" | save --force $README
 
-    ls wallpapers/**/* | where type == file | each {|file|
-        print -n $"(ansi erase_line)($file.name)\r"
+    ls wallpapers/ | sort-by type | each {|it|
+        match $it.type {
+            "dir" => {
+                let readme = $it.name | path join $README
+                "" | save --force $readme
 
-        let wallpaper = ($file.name | path basename)
-        [
-            $"**** ($wallpaper)"
-            $"#+CAPTION: ($wallpaper)"
-            $"#+NAME: ($file.name)"
-            $"[[./($file.name)]]\n\n"
-        ] | str join "\n" | save --force --append README.org
-    } | ignore
+                $"- [[($readme)][($it.name)]]\n" | save --force --append $README
+
+                ls ($it.name | path join "**/*") | where type == file | each {|file|
+                    print -n $"(ansi erase_line)($file.name)\r"
+
+                    preview ($file.name | path basename) ($file.name | path basename) --level 2
+                        | save --force --append $readme
+                }
+            },
+            "file" => {
+                preview $it.name ($it.name | path basename) --level 3
+                    | save --force --append $README
+            },
+        }
+    }
+
+    null
 }
